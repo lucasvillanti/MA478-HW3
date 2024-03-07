@@ -1,0 +1,225 @@
+---
+title: "HW#3 Code"
+author: "Lucas Villanti"
+date: "2024-03-04"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+
+
+```{r}
+test <- read.csv("wine-evaluation-data.csv")
+train <- read.csv("wine-training-data.csv")
+```
+
+DATA EXPLORATION
+
+```{r}
+summary(train)
+```
+
+```{r}
+str(train)
+```
+
+```{r}
+#Histogram of # of wine
+hist(train$TARGET, main = "Distribution of Wine Cases Purchased", xlab = "Number of Cases Purchased", col = "blue")
+```
+
+```{r}
+boxplot(TARGET ~ as.factor(STARS), data = train, main = "Wine Cases Ordered by STARS Rating", xlab = "STARS Rating", ylab = "Number of Cases Ordered", col = "lightblue")
+```
+
+```{r}
+plot(train$pH, train$TARGET, main = "Number of Wine Cases Ordered vs. pH", xlab = "pH", ylab = "Number of Cases Ordered", pch = 19, col = "lightcoral")
+```
+
+```{r}
+hist(train$LabelAppeal, breaks = length(unique(train$LabelAppeal)), main = "Distribution of Label Appeal", xlab = "Label Appeal", col = "salmon")
+```
+
+
+DATA PREPARATION
+
+```{r}
+#make the STARS set to zero if they are missing
+train$STARS[is.na(train$STARS)] <- 0
+
+#set the other columns to the median for there is NAs
+train$Sulphates[is.na(train$Sulphates)] <- median(train$Sulphates, na.rm = TRUE)
+train$pH[is.na(train$pH)] <- median(train$pH, na.rm = TRUE)
+train$ResidualSugar[is.na(train$ResidualSugar)] <- median(train$ResidualSugar, na.rm = TRUE)
+train$Chlorides[is.na(train$Chlorides)] <- median(train$Chlorides, na.rm = TRUE)
+train$FreeSulfurDioxide[is.na(train$FreeSulfurDioxide)] <- median(train$FreeSulfurDioxide, na.rm = TRUE)
+train$TotalSulfurDioxide[is.na(train$TotalSulfurDioxide)] <- median(train$TotalSulfurDioxide, na.rm = TRUE)
+train$Alcohol[is.na(train$Alcohol)] <- median(train$Alcohol, na.rm = TRUE)
+
+#same thing for the test
+test$STARS[is.na(test$STARS)] <- 0
+
+test$Sulphates[is.na(test$Sulphates)] <- median(test$Sulphates, na.rm = TRUE)
+test$pH[is.na(test$pH)] <- median(test$pH, na.rm = TRUE)
+test$ResidualSugar[is.na(test$ResidualSugar)] <- median(test$ResidualSugar, na.rm = TRUE)
+test$Chlorides[is.na(test$Chlorides)] <- median(test$Chlorides, na.rm = TRUE)
+test$FreeSulfurDioxide[is.na(test$FreeSulfurDioxide)] <- median(test$FreeSulfurDioxide, na.rm = TRUE)
+test$TotalSulfurDioxide[is.na(test$TotalSulfurDioxide)] <- median(test$TotalSulfurDioxide, na.rm = TRUE)
+test$Alcohol[is.na(test$Alcohol)] <- median(test$Alcohol, na.rm = TRUE)
+```
+
+SELECT MODELS
+
+POISSON MODELS
+```{r}
+poisson_model_1 <- glm(TARGET ~ STARS + LabelAppeal, family = "poisson", data = train)
+summary(poisson_model_1)
+```
+
+#checking for over-dispersion
+```{r}
+dispersion_statistic1 <- sum(residuals(poisson_model_1, type = "pearson")^2) / poisson_model_1$df.residual
+dispersion_statistic1
+```
+
+
+```{r}
+saturated_poisson_model <- glm(TARGET ~ STARS + LabelAppeal + Alcohol + pH + Sulphates + 
+                                  FixedAcidity + VolatileAcidity + CitricAcid + ResidualSugar + 
+                                  Chlorides + FreeSulfurDioxide + TotalSulfurDioxide + Density,
+                               family = "poisson", data = train)
+summary(saturated_poisson_model)
+```
+
+```{r}
+concise_poisson_model <- glm(TARGET ~ STARS + LabelAppeal + Alcohol + Sulphates + 
+                             FixedAcidity + VolatileAcidity + Chlorides + 
+                             FreeSulfurDioxide + TotalSulfurDioxide + Density,
+                             family = "poisson", data = train)
+summary(concise_poisson_model)
+```
+
+#checking for over-dispersion
+```{r}
+dispersion_statistic <- sum(residuals(concise_poisson_model, type = "pearson")^2) / concise_poisson_model$df.residual
+dispersion_statistic
+```
+
+NEGATIVE BINONIMAL MODELS
+```{r}
+library(MASS)
+nb_model_1 <- glm.nb(TARGET ~ STARS + LabelAppeal + Density, data = train)
+summary(nb_model_1)
+```
+
+```{r}
+nb_model_2 <- glm.nb(TARGET ~ STARS + LabelAppeal + Alcohol + Sulphates + 
+                     FixedAcidity + VolatileAcidity + Chlorides + 
+                     FreeSulfurDioxide + TotalSulfurDioxide + Density,
+                     data = train)
+summary(nb_model_2)
+```
+
+Mutiple Linear Regression Models
+```{r}
+linear_model_1 <- lm(TARGET ~ STARS + LabelAppeal, data = train)
+summary(linear_model_1)
+#F-stat is 6466
+```
+
+```{r}
+linear_model_2 <- lm(TARGET ~ STARS + LabelAppeal + Alcohol + Sulphates + 
+                             FixedAcidity + VolatileAcidity + Chlorides + 
+                             FreeSulfurDioxide + TotalSulfurDioxide + Density, 
+                     data = train)
+summary(linear_model_2)
+#F-stat is 1326
+```
+
+SELECT MODELS
+
+Poisson Model
+```{r}
+1-pchisq(concise_poisson_model$deviance,df.residual(concise_poisson_model))
+1-pchisq(poisson_model_1$deviance,df.residual(poisson_model_1))
+```
+
+
+
+```{r}
+AIC(poisson_model_1,concise_poisson_model)
+#model 2 isnt that much better
+BIC(poisson_model_1,concise_poisson_model)
+```
+
+```{r}
+anova(poisson_model_1,concise_poisson_model,test = "Chisq")
+1-pchisq(deviance(concise_poisson_model),df.residual(concise_poisson_model))
+#0 shows our model does not aquetadelty capture variance in our study
+```
+
+
+Negative Binomial Model
+```{r}
+anova(nb_model_1,nb_model_2,test = "Chisq")
+AIC(nb_model_1,nb_model_2)
+#model 2 isnt that much better
+BIC(nb_model_1,nb_model_2)
+```
+
+```{r}
+logLik(nb_model_1)
+logLik(nb_model_2)
+```
+
+Mutiple Linear Regression
+```{r}
+#model 1 has much higher f-stat
+anova(linear_model_1,linear_model_2,test = "Chisq")
+```
+
+```{r}
+#The three models for comparison
+poisson_model_1
+nb_model_1
+linear_model_1
+```
+
+```{r}
+aic_poisson <- AIC(poisson_model_1)
+aic_nb <- AIC(nb_model_1)
+aic_linear <- AIC(linear_model_1)
+
+# Print AIC values
+cat("AIC for Poisson Model 1:", aic_poisson, "\n")
+cat("AIC for Negative Binomial Model 1:", aic_nb, "\n")
+cat("AIC for Linear Model 1:", aic_linear, "\n")
+```
+
+
+```{r}
+loglik_poisson <- logLik(poisson_model_1)
+loglik_nb <- logLik(nb_model_1)
+l<-logLik(linear_model_1)
+
+# Print AIC values
+cat("LogLik for Poisson Model 1:", loglik_poisson, "\n")
+cat("logLik for Negative Binomial Model 1:", loglik_nb, "\n")
+cat("AIC for Linear Model 1:", l, "\n")
+```
+
+#predictions
+```{r}
+pos_pred <- predict(poisson_model_1,newdata = test,type = "response")
+summary(pos_pred)
+nb_pred <- predict(nb_model_1,newdata = test,type = "response")
+summary(nb_pred)
+lin_pred <- predict(linear_model_1,newdata = test,type = "response")
+summary(lin_pred)
+```
+
+
+
